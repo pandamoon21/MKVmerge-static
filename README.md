@@ -1,5 +1,11 @@
-# MKVToolNix static builds
-Static builds for [MKVToolNix](https://mkvtoolnix.download/source.html) (`mkvmerge` only, for now) using `docker`
+# MKVMerge static builds
+Static builds for MKVMerge from [MKVToolNix](https://mkvtoolnix.download/source.html) using `docker`
 
 ## Current Release
-* MKVToolNix version: 47.0.0 for Windows 7 and newer, and Linux
+* MKVMerge version: 58.0.0 for Linux
+
+## Current Platforms
+linux-i686
+linux-amd64
+linux-armhf
+linux-aarch64

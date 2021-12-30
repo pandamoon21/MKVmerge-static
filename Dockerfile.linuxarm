@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN \
 	apt-get update && \
 	apt-get -y upgrade && \
-	apt-get install -y wget curl make cmake rake xz-utils bzip2 binutils-i686-linux-gnu gcc-i686-linux-gnu g++-i686-linux-gnu binutils-x86-64-linux-gnu gcc-x86-64-linux-gnu g++-x86-64-linux-gnu binutils gcc g++ pkg-config texinfo m4 zip autoconf libtool ninja-build meson
+	apt-get install -y wget curl make cmake rake xz-utils bzip2 binutils-arm-linux-gnueabihf gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils gcc g++ pkg-config texinfo m4 zip autoconf libtool ninja-build meson
 
 ENV BUILD=x86_64-unknown-linux-gnu
 
@@ -80,11 +80,11 @@ RUN apt-get install -y libxslt-dev xsltproc docbook-xsl \
 	&& ln -s mkvtoolnix-$MKVTOOLNIX_VER mkvtoolnix
     
 ###################Stage 1: ######################
-FROM builder AS build_i686
+FROM builder AS build_armhf
 
 ARG MKVTOOLNIX_BIN
 
-ENV COMPILER_PREFIX=i686-linux-gnu-
+ENV COMPILER_PREFIX=arm-linux-gnueabihf-
 
 ENV CC ${COMPILER_PREFIX}gcc
 ENV CXX ${COMPILER_PREFIX}g++
@@ -96,12 +96,12 @@ ENV OBJDUMP ${COMPILER_PREFIX}objdump
 ENV AS ${COMPILER_PREFIX}as
 ENV NM ${COMPILER_PREFIX}nm
 
-ARG HOST=i686-unknown-linux-gnu
+ARG HOST=arm-unknown-linux-gnueabihf
 
-ARG CFLAGS="-m32 -fstack-protector-strong"
-ARG CXXFLAGS="-m32 -fstack-protector-strong"
+ARG CFLAGS="-fstack-protector-strong"
+ARG CXXFLAGS="-fstack-protector-strong"
 ARG CPPFLAGS="-D_FILE_OFFSET_BITS=64"
-ARG LDFLAGS="-m32 -fstack-protector-strong"
+ARG LDFLAGS="-fstack-protector-strong"
 
 ARG BUILDROOT=/opt/linux
 ARG PREFIX=$BUILDROOT/$HOST-build
@@ -135,7 +135,7 @@ RUN	mkdir -p $BUILDROOT/libiconv-$LIBICONV_VER && cd $BUILDROOT/libiconv-$LIBICO
 	&& make -j $(($(nproc) + 3)) && make install
 
 RUN	cd $SRC/boost-$BOOST_VER \
-	&& echo "using gcc : : ${COMPILER_PREFIX}g++ : <archiver>${COMPILER_PREFIX}ar <ranlib>${COMPILER_PREFIX}ranlib <cxxflags>\"${CXXFLAGS}\" <linkflags>\"${LDFLAGS}\" ;" > user-config.jam \
+	&& echo "using gcc : arm : ${COMPILER_PREFIX}g++ : <archiver>${COMPILER_PREFIX}ar <ranlib>${COMPILER_PREFIX}ranlib <cxxflags>\"${CXXFLAGS}\" <linkflags>\"${LDFLAGS}\" ;" > user-config.jam \
 	&& cd tools/build && CXX=g++ CXXFLAGS= LDFLAGS= ./bootstrap.sh \
 	&& cd ../../ && ./tools/build/b2 \
         -a \
@@ -144,9 +144,9 @@ RUN	cd $SRC/boost-$BOOST_VER \
         --ignore-site-config \
         --user-config=user-config.jam \
 		-sBOOST_ROOT=$SRC/boost-$BOOST_VER \
-        abi=sysv \
+        abi=aapcs \
         address-model=32 \
-        architecture=x86 \
+        architecture=arm \
         binary-format=elf \
         link=static \
         target-os=linux \
@@ -154,7 +154,7 @@ RUN	cd $SRC/boost-$BOOST_VER \
         threading=multi \
 		runtime-link=static \
         variant=release \
-        toolset=gcc \
+        toolset=gcc-arm \
         optimization=speed \
         --layout=tagged \
         --disable-icu \
@@ -216,13 +216,13 @@ RUN	mkdir -p $BUILDROOT/gettext-$GETTEXT_VER && cd $BUILDROOT/gettext-$GETTEXT_V
 	&& make -C intl -j $(($(nproc) + 3)) install
 
 RUN	cd $SRC/nlohmann-json-$NLOHMANN_VER \
-	&& CC=gcc CXX=g++ AR=ar STRIP=strip CXXFLAGS= LDFLAGS= meson --prefix=$PREFIX --libdir=lib builddir \
+	&& echo "[binaries]\nc = '${COMPILER_PREFIX}gcc'\ncpp = '${COMPILER_PREFIX}g++'\nar = '${COMPILER_PREFIX}ar'\nstrip = '${COMPILER_PREFIX}strip'\npkgconfig = 'pkg-config'\nexe_wrapper = 'qemu-arm'\n[properties]\nskip_sanity_check = true\n[host_machine]\nsystem = 'linux'\ncpu_family = 'arm'\ncpu = 'armv7'\nendian = 'little'" > cross_file.txt \
+	&& CC=gcc CXX=g++ AR=ar STRIP=strip CXXFLAGS= LDFLAGS= meson --prefix=$PREFIX --libdir=lib builddir --cross-file cross_file.txt \
 	&& ninja -C builddir install
 
 RUN	mkdir -p $BUILDROOT/pcre2-$PCRE2_VER && cd $BUILDROOT/pcre2-$PCRE2_VER \
 	&& $SRC/pcre2-$PCRE2_VER/configure --prefix=$PREFIX --host=$HOST --build=$BUILD --disable-shared \
 	&& make -j $(($(nproc) + 3)) && make install
-
 
 RUN	cd $SRC/mkvtoolnix \
 	&& ./configure --enable-qt=no --enable-update-check=no --enable-static=yes \
@@ -234,15 +234,15 @@ FROM scratch AS mkvtoolnix
 
 ARG MKVTOOLNIX_BIN
 
-COPY --from=build_i686 /opt/_src/mkvtoolnix/src/$MKVTOOLNIX_BIN /i686/
+COPY --from=build_armhf /opt/_src/mkvtoolnix/src/$MKVTOOLNIX_BIN /armhf/
 
 
 ##################Stage 3: ######################
-FROM builder AS build_x86_64
+FROM builder AS build_arm64
 
 ARG MKVTOOLNIX_BIN
 
-ENV COMPILER_PREFIX=
+ENV COMPILER_PREFIX=aarch64-linux-gnu-
 
 ENV CC ${COMPILER_PREFIX}gcc
 ENV CXX ${COMPILER_PREFIX}g++
@@ -254,12 +254,12 @@ ENV OBJDUMP ${COMPILER_PREFIX}objdump
 ENV AS ${COMPILER_PREFIX}as
 ENV NM ${COMPILER_PREFIX}nm
 
-ARG HOST=x86_64-unknown-linux-gnu
+ARG HOST=aarch64-unknown-linux-gnu
 
-ARG CFLAGS="-m64 -fstack-protector-strong"
-ARG CXXFLAGS="-m64 -fstack-protector-strong"
+ARG CFLAGS="-fstack-protector-strong"
+ARG CXXFLAGS="-fstack-protector-strong"
 ARG CPPFLAGS="-D_FILE_OFFSET_BITS=64"
-ARG LDFLAGS="-m64 -fstack-protector-strong"
+ARG LDFLAGS="-fstack-protector-strong"
 
 ARG BUILDROOT=/opt/linux
 ARG PREFIX=$BUILDROOT/$HOST-build
@@ -293,7 +293,7 @@ RUN	mkdir -p $BUILDROOT/libiconv-$LIBICONV_VER && cd $BUILDROOT/libiconv-$LIBICO
 	&& make -j $(($(nproc) + 3)) && make install
 
 RUN	cd $SRC/boost-$BOOST_VER \
-	&& echo "using gcc : : ${COMPILER_PREFIX}g++ : <archiver>${COMPILER_PREFIX}ar <ranlib>${COMPILER_PREFIX}ranlib <cxxflags>\"${CXXFLAGS}\" <linkflags>\"${LDFLAGS}\" ;" > user-config.jam \
+	&& echo "using gcc : arm : ${COMPILER_PREFIX}g++ : <archiver>${COMPILER_PREFIX}ar <ranlib>${COMPILER_PREFIX}ranlib <cxxflags>\"${CXXFLAGS}\" <linkflags>\"${LDFLAGS}\" ;" > user-config.jam \
 	&& cd tools/build && CXX=g++ CXXFLAGS= LDFLAGS= ./bootstrap.sh \
 	&& cd ../../ && ./tools/build/b2 \
         -a \
@@ -302,9 +302,9 @@ RUN	cd $SRC/boost-$BOOST_VER \
         --ignore-site-config \
         --user-config=user-config.jam \
 		-sBOOST_ROOT=$SRC/boost-$BOOST_VER \
-        abi=sysv \
+        abi=aapcs \
         address-model=64 \
-        architecture=x86 \
+        architecture=arm \
         binary-format=elf \
         link=static \
         target-os=linux \
@@ -312,7 +312,7 @@ RUN	cd $SRC/boost-$BOOST_VER \
         threading=multi \
 		runtime-link=static \
         variant=release \
-        toolset=gcc \
+        toolset=gcc-arm \
         optimization=speed \
         --layout=tagged \
         --disable-icu \
@@ -374,13 +374,13 @@ RUN	mkdir -p $BUILDROOT/gettext-$GETTEXT_VER && cd $BUILDROOT/gettext-$GETTEXT_V
 	&& make -C intl -j $(($(nproc) + 3)) install
 
 RUN	cd $SRC/nlohmann-json-$NLOHMANN_VER \
-	&& CC=gcc CXX=g++ AR=ar STRIP=strip CXXFLAGS= LDFLAGS= meson --prefix=$PREFIX --libdir=lib builddir \
+	&& echo "[binaries]\nc = '${COMPILER_PREFIX}gcc'\ncpp = '${COMPILER_PREFIX}g++'\nar = '${COMPILER_PREFIX}ar'\nstrip = '${COMPILER_PREFIX}strip'\npkgconfig = 'pkg-config'\nexe_wrapper = 'qemu-aarch64'\n[properties]\nskip_sanity_check = true\n[host_machine]\nsystem = 'linux'\ncpu_family = 'aarch64'\ncpu = 'aarch64'\nendian = 'little'" > cross_file.txt \
+	&& CC=gcc CXX=g++ AR=ar STRIP=strip CXXFLAGS= LDFLAGS= meson --prefix=$PREFIX --libdir=lib builddir --cross-file cross_file.txt \
 	&& ninja -C builddir install
 
 RUN	mkdir -p $BUILDROOT/pcre2-$PCRE2_VER && cd $BUILDROOT/pcre2-$PCRE2_VER \
 	&& $SRC/pcre2-$PCRE2_VER/configure --prefix=$PREFIX --host=$HOST --build=$BUILD --disable-shared \
 	&& make -j $(($(nproc) + 3)) && make install
-
 
 RUN	cd $SRC/mkvtoolnix \
 	&& ./configure --enable-qt=no --enable-update-check=no --enable-static=yes \
@@ -392,4 +392,4 @@ FROM mkvtoolnix
 
 ARG MKVTOOLNIX_BIN
 
-COPY --from=build_x86_64 /opt/_src/mkvtoolnix/src/$MKVTOOLNIX_BIN /x86_64/
+COPY --from=build_arm64 /opt/_src/mkvtoolnix/src/$MKVTOOLNIX_BIN /arm64/
