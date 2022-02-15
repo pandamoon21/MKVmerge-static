@@ -1,39 +1,48 @@
 ARG MKVTOOLNIX_BIN=mkvmerge
 
 ###################Stage 0: ######################
-FROM ubuntu:focal AS builder
+FROM ubuntu:impish AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN \
 	apt-get update && \
 	apt-get -y upgrade && \
-	apt-get install -y wget curl make cmake rake xz-utils bzip2 binutils-i686-linux-gnu gcc-i686-linux-gnu g++-i686-linux-gnu binutils-x86-64-linux-gnu gcc-x86-64-linux-gnu g++-x86-64-linux-gnu binutils gcc g++ pkg-config texinfo m4 zip autoconf libtool ninja-build meson
+	apt-get install -y wget curl make rake xz-utils bzip2 binutils-i686-linux-gnu gcc-10-i686-linux-gnu g++-10-i686-linux-gnu binutils-x86-64-linux-gnu g++-10-x86-64-linux-gnu binutils gcc-10 g++-10 pkg-config texinfo m4 zip autoconf libtool ninja-build meson
 
 ENV BUILD=x86_64-unknown-linux-gnu
 
 ENV SRC=/opt/_src/
 
-ENV MKVTOOLNIX_VER=58.0.0
+ENV MKVTOOLNIX_VER=65.0.0
 
 ENV XZ_VER=5.2.5
 ENV BZIP2_VER=1.0.8
 ENV ZLIB_VER=1.2.11
-ENV EXPAT_VER=2.4.1
+ENV EXPAT_VER=2.4.4
 ENV LIBICONV_VER=1.16
-ENV BOOST_VER=1.72.0
+ENV BOOST_VER=1.78.0
 ENV OGG_VER=1.3.5
 ENV VORBIS_VER=1.3.7
 ENV FLAC_VER=1.3.3
-ENV FILE_VER=5.38
-ENV PUGIXML_VER=1.9
-ENV FMT_VER=6.2.1
-ENV LIBEBML_VER=1.3.10
-ENV LIBMATROSKA_VER=1.5.2
-ENV GETTEXT_VER=0.20.2
-ENV NLOHMANN_VER=3.8.0
-ENV PCRE2_VER=10.39
+ENV FILE_VER=5.39
+ENV PUGIXML_VER=1.11.4
+ENV FMT_VER=8.1.1
+ENV LIBEBML_VER=1.4.2
+ENV LIBMATROSKA_VER=1.6.3
+ENV GETTEXT_VER=0.21
+ENV NLOHMANN_VER=3.10.5
+ENV GMP_VER=6.2.1
+ENV QT_VER=6.2.3
+ENV CMAKE_VER=3.22.2
 
+RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE_VER/cmake-$CMAKE_VER-linux-x86_64.sh && \
+	mv cmake-$CMAKE_VER-linux-x86_64.sh /opt/ && \
+	chmod +x /opt/cmake-$CMAKE_VER-linux-x86_64.sh && \
+	cd /opt && \
+	mkdir /opt/cmake-$CMAKE_VER-linux-x86_64 && \
+	/opt/cmake-$CMAKE_VERlinux-x86_64.sh --skip-license --prefix=/opt/cmake-$CMAKE_VER-linux-x86_64 && \
+	ln -s /opt/cmake-$CMAKE_VER-linux-x86_64/bin/* /usr/bin
 
 RUN apt-get install -y libxslt-dev xsltproc docbook-xsl \
 \
@@ -56,7 +65,8 @@ RUN apt-get install -y libxslt-dev xsltproc docbook-xsl \
 	&& curl -L -O https://dl.matroska.org/downloads/libmatroska/libmatroska-$LIBMATROSKA_VER.tar.xz \
 	&& curl -L -O https://ftp.gnu.org/pub/gnu/gettext/gettext-$GETTEXT_VER.tar.gz \
 	&& curl -L -o nlohmann-json-$NLOHMANN_VER.zip https://github.com/nlohmann/json/releases/download/v$NLOHMANN_VER/include.zip \
-	&& curl -L -O https://github.com/PhilipHazel/pcre2/releases/download/pcre2-$PCRE2_VER/pcre2-$PCRE2_VER.tar.gz \
+	&& curl -L -O https://gmplib.org/download/gmp/gmp-$GMP_VER.tar.xz \
+	&& curl -L -o qt-$QT_VER.tar.xz https://download.qt.io/official_releases/qt/6.2/$QT_VER/single/qt-everywhere-src-$QT_VER.tar.xz \
 \
 	&& /bin/bash -c \
 	'\
@@ -86,8 +96,8 @@ ARG MKVTOOLNIX_BIN
 
 ENV COMPILER_PREFIX=
 
-ENV CC ${COMPILER_PREFIX}gcc
-ENV CXX ${COMPILER_PREFIX}g++
+ENV CC ${COMPILER_PREFIX}gcc-10
+ENV CXX ${COMPILER_PREFIX}g++-10
 ENV AR ${COMPILER_PREFIX}ar
 ENV RANLIB ${COMPILER_PREFIX}ranlib
 ENV STRIP ${COMPILER_PREFIX}strip
@@ -219,19 +229,16 @@ RUN	cd $SRC/nlohmann-json-$NLOHMANN_VER \
 	&& CC=gcc CXX=g++ AR=ar STRIP=strip CXXFLAGS= LDFLAGS= meson --prefix=$PREFIX --libdir=lib builddir \
 	&& ninja -C builddir install
 
-RUN	mkdir -p $BUILDROOT/pcre2-$PCRE2_VER && cd $BUILDROOT/pcre2-$PCRE2_VER \
-	&& $SRC/pcre2-$PCRE2_VER/configure --prefix=$PREFIX --host=$HOST --build=$BUILD --disable-shared \
+RUN	mkdir -p $BUILDROOT/gmp-$GMP_VER && cd $BUILDROOT/gmp-$GMP_VER \
+	&& $SRC/gmp-$GMP_VER/configure --prefix=$PREFIX --host=$HOST --build=$BUILD --disable-shared \
 	&& make -j $(($(nproc) + 3)) && make install
+
+RUN	mkdir -p $BUILDROOT/qt-$QT_VER && cd $BUILDROOT/qt-$QT_VER \
+	&& $SRC/qt-$QT_VER/configure --release --static --opensource --confirm-license --no-opengl -skip qtwebengine -nomake examples -nomake tests -skip qt3d -skip qtactiveqt -skip qtcanvas3d -skip qtconnectivity -skip qtdatavis3d -skip qtdoc -skip qtgamepad -skip qtlocation -skip qtnetworkauth -skip qtpurchasing -skip qtremoteobjects -skip qtscxml -skip qtsensors -skip qtserialbus -skip qtserialport -skip qtspeech -skip qtquick3d -skip qtvirtualkeyboard -skip qtwebview -skip qtscript --prefix=$PREFIX \
+	&& cmake --build . --parallel && cmake --install .
 
 
 RUN	cd $SRC/mkvtoolnix \
-	&& ./configure --enable-qt=no --enable-update-check=no --enable-static=yes \
+	&& ./configure --disable-gui --enable-update-check=no --enable-static=yes --with-qmake6=$PREFIX/bin/qmake6 \
 		--with-boost=$PREFIX --host=$HOST \
 	&& rake apps:strip
-
-###################Stage 2: ######################
-FROM mkvtoolnix
-
-ARG MKVTOOLNIX_BIN
-
-COPY --from=build_x86_64 /opt/_src/mkvtoolnix/src/$MKVTOOLNIX_BIN /x86_64/
