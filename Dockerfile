@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN \
 	apt-get update && \
 	apt-get -y upgrade && \
-	apt-get install -y wget curl make rake xz-utils bzip2 binutils-i686-linux-gnu gcc-10-i686-linux-gnu g++-10-i686-linux-gnu binutils-x86-64-linux-gnu g++-10-x86-64-linux-gnu binutils gcc-10 g++-10 pkg-config texinfo m4 zip autoconf libtool ninja-build meson
+	apt-get install -y build-essential wget curl make rake xz-utils bzip2 binutils-i686-linux-gnu gcc-10-i686-linux-gnu g++-10-i686-linux-gnu binutils-x86-64-linux-gnu g++-10-x86-64-linux-gnu binutils gcc-10 g++-10 pkg-config texinfo m4 zip autoconf libtool ninja-build meson
 
 ENV BUILD=x86_64-unknown-linux-gnu
 
@@ -39,9 +39,8 @@ ENV CMAKE_VER=3.22.2
 RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE_VER/cmake-$CMAKE_VER-linux-x86_64.sh && \
 	mv cmake-$CMAKE_VER-linux-x86_64.sh /opt/ && \
 	chmod +x /opt/cmake-$CMAKE_VER-linux-x86_64.sh && \
-	cd /opt && \
 	mkdir /opt/cmake-$CMAKE_VER-linux-x86_64 && \
-	/opt/cmake-$CMAKE_VERlinux-x86_64.sh --skip-license --prefix=/opt/cmake-$CMAKE_VER-linux-x86_64 && \
+	/opt/cmake-$CMAKE_VER-linux-x86_64.sh --skip-license --prefix=/opt/cmake-$CMAKE_VER-linux-x86_64 && \
 	ln -s /opt/cmake-$CMAKE_VER-linux-x86_64/bin/* /usr/bin
 
 RUN apt-get install -y libxslt-dev xsltproc docbook-xsl \
@@ -242,3 +241,10 @@ RUN	cd $SRC/mkvtoolnix \
 	&& ./configure --disable-gui --enable-update-check=no --enable-static=yes --with-qmake6=$PREFIX/bin/qmake6 \
 		--with-boost=$PREFIX --host=$HOST \
 	&& rake apps:strip
+
+###################Stage 2: ######################
+FROM mkvtoolnix
+
+ARG MKVTOOLNIX_BIN
+
+COPY --from=build_x86_64 /opt/_src/mkvtoolnix-$MKVTOOLNIX_VER/src/$MKVTOOLNIX_BIN /x86_64/
