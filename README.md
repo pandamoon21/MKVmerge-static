@@ -2,7 +2,7 @@
 Static builds for MKVMerge from [MKVToolNix](https://mkvtoolnix.download/source.html) using `docker`
 
 ## Current Release
-* MKVMerge version: 65.0.0 for Linux x64
+* MKVMerge version: 66.0.0 for Linux x64
 
 ## Commands
 ```
