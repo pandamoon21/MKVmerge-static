@@ -1,7 +1,7 @@
 ARG MKVTOOLNIX_BIN=mkvmerge
 
 ###################Stage 0: ######################
-FROM ubuntu:impish AS builder
+FROM ubuntu:focal AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
